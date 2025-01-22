@@ -8,14 +8,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 import os
 
-# Initialize the app
+
 app = FastAPI()
 
-# Initialize model and data variables
+
 model = None
 data = None
 
-# File path for saving the model
+
 MODEL_FILE = "model.pkl"
 
 class PredictionInput(BaseModel):
@@ -36,10 +36,10 @@ class PredictionInput(BaseModel):
 async def upload(file: UploadFile):
     try:
         global data
-        # Read the uploaded file into a Pandas DataFrame
+        
         df = pd.read_csv(file.file)
 
-        # Rename or map columns if needed
+        
         df.rename(columns={
             "Hydraulic_Pressure(bar)": "Hydraulic_Pressure",
             "Coolant_Pressure(bar)": "Coolant_Pressure",
@@ -56,7 +56,7 @@ async def upload(file: UploadFile):
             "Downtime": "Downtime"
         }, inplace=True)
 
-        # Convert target variable to binary (1 for failure, 0 for no failure)
+        
         df["Downtime"] = df["Downtime"].apply(lambda x: 1 if x == "Machine_Failure" else 0)
 
         data = df
@@ -71,7 +71,7 @@ async def train():
         if data is None:
             raise HTTPException(status_code=400, detail="No data uploaded. Use the /upload endpoint first.")
 
-        # Prepare the data
+        
         feature_columns = [
             "Hydraulic_Pressure", "Coolant_Pressure", "Air_System_Pressure",
             "Coolant_Temperature", "Hydraulic_Oil_Temperature", "Spindle_Bearing_Temperature",
@@ -80,22 +80,22 @@ async def train():
         X = data[feature_columns]
         y = data["Downtime"]
 
-        # Handle missing values by filling with the mean
+        
         X.fillna(X.mean(), inplace=True)
 
-        # Split data
+        
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        # Train the model
+        
         model = LogisticRegression()
         model.fit(X_train, y_train)
 
-        # Evaluate the model
+        
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred)
 
-        # Save the model
+        
         joblib.dump(model, MODEL_FILE)
 
         return {
@@ -116,7 +116,7 @@ async def predict(input_data: PredictionInput):
             else:
                 raise HTTPException(status_code=400, detail="No model found. Train the model using /train endpoint.")
 
-        # Prepare input for prediction
+        
         input_df = pd.DataFrame([input_data.dict()])
         prediction = model.predict(input_df)[0]
         confidence = max(model.predict_proba(input_df)[0])
@@ -127,12 +127,3 @@ async def predict(input_data: PredictionInput):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# README documentation:
-# 1. Install dependencies: pip install fastapi[all] scikit-learn joblib pandas uvicorn
-# 2. Run the server: uvicorn predictive_analysis_api:app --reload
-# 3. API Endpoints:
-#    - POST /upload: Upload the Kaggle CSV dataset with all required columns
-#    - POST /train: Train the model on the uploaded dataset
-#    - POST /predict: Provide JSON input with feature values to get predictions
-# 4. Test endpoints with Postman or cURL.
